@@ -4,9 +4,13 @@ import { detectTech } from "./detectors/tech";
 import { buildDesignMd } from "./generators/design-md";
 import { buildSkillsMd } from "./generators/skills-md";
 import { DesignData, ColorInfo, FontInfo } from "./types";
+import path from "path";
+
 
 const app = express();
 app.use(express.json());
+// Serve static frontend
+app.use(express.static(path.join(__dirname, "../public")));
 
 app.post("/api/scrape", async (req, res) => {
   try {
@@ -74,7 +78,12 @@ app.post("/api/scrape", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
+const publicPath = path.join(__dirname, "../public");
+console.log("Serving static files from:", publicPath);
+// Add this RIGHT BEFORE app.listen() to test
+app.get("/test", (req, res) => {
+  res.send("Express is working!");
+});
 app.listen(3000, () => {
   console.log("Server running at http://localhost:3000");
 });
