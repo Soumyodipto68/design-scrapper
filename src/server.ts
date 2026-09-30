@@ -3,6 +3,7 @@ import { fetchPage } from "./scraper/fetcher";
 import { detectTech } from "./detectors/tech";
 import { buildDesignMd } from "./generators/design-md";
 import { buildSkillsMd } from "./generators/skills-md";
+import { DesignData, ColorInfo, FontInfo } from "./types";
 
 const app = express();
 app.use(express.json());
@@ -17,11 +18,53 @@ app.post("/api/scrape", async (req, res) => {
     console.log(`Scraping: ${url}`);
     const pageData = await fetchPage(url);
 
-    // Detect tech from collected HTML + headers
+    // ── Detect tech stack ──────────────────────────────
     const techs = detectTech(pageData.html, pageData.headers);
 
-    // ... rest of your existing color/font extraction logic stays the same ...
+    // ── Extract colors ─────────────────────────────────
+    const colorMap: Record<string, number> = {};
+    pageData.styles.forEach((s: any) => {
+      if (s.color) {
+        colorMap[s.color] = (colorMap[s.color] || 0) + 1;
+      }
+      if (s.backgroundColor && s.backgroundColor !== "rgba(0, 0, 0, 0)") {
+        colorMap[s.backgroundColor] = (colorMap[s.backgroundColor] || 0) + 1;
+      }
+    });
 
+    const colors: ColorInfo[] = Object.entries(colorMap)
+      .sort(([, a]: [string, number], [, b]: [string, number]) => b - a)
+      .slice(0, 20)
+      .map(([hex, count]) => ({ hex, usage: "detected", count }));
+
+    // ── Extract fonts ──────────────────────────────────
+    const fontMap: Record<string, number> = {};
+    pageData.styles.forEach((s: any) => {
+      if (s.fontFamily) {
+        fontMap[s.fontFamily] = (fontMap[s.fontFamily] || 0) + 1;
+      }
+    });
+
+    const fonts: FontInfo[] = Object.entries(fontMap)
+      .sort(([, a]: [string, number], [, b]: [string, number]) => b - a)
+      .slice(0, 10)
+      .map(([family, count]) => ({
+        family: family.split(",")[0].replace(/['"]/g, "").trim(),
+        size: "varied",
+        weight: "varied",
+        count,
+      }));
+
+    // ── Build design data ──────────────────────────────
+    const designData: DesignData = {
+      url,
+      colors,
+      fonts,
+      breakpoints: [`viewport: ${pageData.viewportWidth}px`],
+      layout: `Detected ${pageData.styles.length} elements on initial viewport`,
+    };
+
+    // ── Return results ─────────────────────────────────
     res.json({
       design_md: buildDesignMd(designData),
       skills_md: buildSkillsMd(url, techs),
