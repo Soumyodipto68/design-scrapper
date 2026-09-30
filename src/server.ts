@@ -19,7 +19,7 @@ async function scrapeSingle(url: string) {
   const pageData = await fetchPage(url);
 
   // ── Detect tech stack ──────────────────────────────
-  const techs = detectTech(pageData.html, pageData.headers);
+const techs = detectTech(pageData.html, pageData.headers ?? null);
 
   // ── Extract colors ─────────────────────────────────
   const colorMap: Record<string, number> = {};
