@@ -11,12 +11,23 @@ export async function getBrowser() {
 
 export async function fetchPage(url: string) {
   const browser = await getBrowser();
-  const page = await browser.newPage();
+  const context = await browser.newContext({
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+  });
+  const page = await context.newPage();
+
+  // Capture response headers from the main document request
+  let headers: Record<string, string> = {};
+  page.on("response", async (response: any) => {
+    if (response.url() === url || response.url().startsWith(url)) {
+      headers = await response.allHeaders();
+    }
+  });
 
   await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
 
   const data = await page.evaluate(() => {
-    // Collect all computed styles for every element
     const elements = Array.from(document.querySelectorAll("*"));
     const styles: any[] = [];
 
@@ -30,26 +41,22 @@ export async function fetchPage(url: string) {
         fontSize: computed.fontSize,
         fontWeight: computed.fontWeight,
         paddingTop: computed.paddingTop,
-        paddingLeft: computed.paddingLeft,
         marginTop: computed.marginTop,
-        marginLeft: computed.marginLeft,
       });
     });
 
-    // Collect viewport size
-    const viewportWidth = window.innerWidth;
-
-    // Collect all link hrefs (for framework detection hints)
-    const scripts = Array.from(document.querySelectorAll("script[src]")).map(
-      (s) => s.src
-    );
-    const linkStyles = Array.from(document.querySelectorAll("link[rel=stylesheet]")).map(
-      (l) => l.href
-    );
-
-    return { styles, viewportWidth, scripts, linkStyles };
+    return {
+      styles,
+      viewportWidth: window.innerWidth,
+      html: document.documentElement.outerHTML,
+    };
   });
 
   await page.close();
-  return data;
+  await context.close();
+
+  return {
+    ...data,
+    headers,
+  };
 }
