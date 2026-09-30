@@ -1,62 +1,83 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Design Scraper</title>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <div class="container">
-      <header>
-        <h1>🎨 Design Scraper</h1>
-        <p class="subtitle">
-          Extract design tokens & tech stack from any website
-        </p>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design Scraper</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎨 Design Scraper</h1>
+      <p class="subtitle">Extract design tokens & tech stack from any website</p>
+    </header>
 
-      <!-- Input form -->
-      <form id="scrape-form" class="input-row">
-        <input
-          type="url"
-          id="url-input"
-          placeholder="https://example.com"
-          required
-        />
-        <button type="submit" id="scrape-btn">Scrape</button>
-      </form>
+    <!-- Mode toggle -->
+    <div class="mode-toggle">
+      <button class="mode-btn active" data-mode="single">Single URL</button>
+      <button class="mode-btn" data-mode="batch">Batch (multiple URLs)</button>
+    </div>
 
-      <!-- Status / loading -->
-      <div id="status" class="status hidden"></div>
+    <!-- Single mode -->
+    <form id="scrape-form" class="input-row">
+      <input type="url" id="url-input" placeholder="https://example.com" required />
+      <button type="submit" id="scrape-btn">Scrape</button>
+    </form>
 
-      <!-- Results -->
-      <div id="results" class="results hidden">
-        <div class="preview-wrapper hidden" id="preview-wrapper">
-          <h3>📸 Page Preview</h3>
-          <img id="screenshot" alt="Page screenshot" />
-        </div>
-        <div class="tabs">
-          <button class="tab active" data-tab="design">design.md</button>
-          <button class="tab" data-tab="skills">skills.md</button>
-        </div>
+    <!-- Batch mode -->
+    <div id="batch-panel" class="hidden">
+      <textarea
+        id="urls-input"
+        rows="6"
+        placeholder="Paste URLs, one per line:&#10;https://site-one.com&#10;https://site-two.com&#10;https://site-three.com"
+      ></textarea>
+      <button id="batch-btn" class="full-btn">Scrape All (max 10)</button>
+    </div>
 
-        <div class="output-wrapper">
-          <pre id="output-design" class="output active"></pre>
-          <pre id="output-skills" class="output"></pre>
-        </div>
+    <!-- Status / loading -->
+    <div id="status" class="status hidden"></div>
 
-        <div class="actions">
-          <button id="copy-btn" class="btn-secondary">📋 Copy</button>
-          <button id="download-design" class="btn-secondary">
-            ⬇ design.md
-          </button>
-          <button id="download-skills" class="btn-secondary">
-            ⬇ skills.md
-          </button>
-        </div>
+    <!-- Progress bar for batch -->
+    <div id="progress-wrap" class="hidden">
+      <div id="progress-bar"></div>
+      <span id="progress-text"></span>
+    </div>
+
+    <!-- Single results -->
+    <div id="results" class="results hidden">
+      <div class="preview-wrapper hidden" id="preview-wrapper">
+        <h3>📸 Page Preview</h3>
+        <img id="screenshot" alt="Page screenshot" />
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="design">design.md</button>
+        <button class="tab" data-tab="skills">skills.md</button>
+      </div>
+
+      <div class="output-wrapper">
+        <pre id="output-design" class="output active"></pre>
+        <pre id="output-skills" class="output"></pre>
+      </div>
+
+      <div class="actions">
+        <button id="copy-btn" class="btn-secondary">📋 Copy</button>
+        <button id="download-design" class="btn-secondary">⬇ design.md</button>
+        <button id="download-skills" class="btn-secondary">⬇ skills.md</button>
       </div>
     </div>
 
-    <script src="app.js"></script>
-  </body>
+    <!-- Batch results -->
+    <div id="batch-results" class="results hidden">
+      <div class="actions">
+        <button id="download-zip" class="btn-primary">📦 Download All (.zip)</button>
+      </div>
+      <div id="batch-cards"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
 </html>
