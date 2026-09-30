@@ -254,7 +254,7 @@ function collectSignals(html: string, headers: Record<string, string>): string {
 }
 
 // ── Main detection function ────────────────────────────
-export function detectTech(
+function detectTechLocally(
   html: string,
   headers: Record<string, string>
 ): TechInfo[] {
@@ -285,4 +285,48 @@ export function detectTech(
   }
 
   return detected;
+}
+
+interface WappalyzerTechnology {
+  name: string;
+  versions?: string[];
+  categories?: { name: string }[];
+}
+
+interface WappalyzerLookup {
+  technologies?: WappalyzerTechnology[];
+}
+
+export async function detectTech(
+  url: string,
+  html: string,
+  headers: Record<string, string>
+): Promise<TechInfo[]> {
+  const apiKey = process.env.WAPPALYZER_API_KEY;
+  if (!apiKey) {
+    return detectTechLocally(html, headers);
+  }
+
+  const apiUrl = new URL("https://api.wappalyzer.com/v2/lookup/");
+  apiUrl.searchParams.set("urls", url);
+  apiUrl.searchParams.set("sets", "all");
+
+  try {
+    const response = await fetch(apiUrl, {
+      headers: { "x-api-key": apiKey },
+    });
+    if (!response.ok) {
+      throw new Error(`Wappalyzer API request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const result = (await response.json()) as WappalyzerLookup;
+    return (result.technologies ?? []).map((technology) => ({
+      name: technology.name,
+      version: technology.versions?.[0],
+      category: technology.categories?.[0]?.name ?? "Uncategorized",
+    }));
+  } catch (error) {
+    console.error("Wappalyzer API error; using local detection:", error);
+    return detectTechLocally(html, headers);
+  }
 }

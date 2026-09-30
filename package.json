@@ -3,19 +3,17 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc"
   },
-
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "express": "^5.2.1",
-    "playwright": "^1.63.0",
-    "wappalyzer": "^7.0.3"
+    "jszip": "^3.10.2",
+    "playwright": "^1.63.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
