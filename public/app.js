@@ -16,7 +16,9 @@ tabs.forEach((tab) => {
     tab.classList.add("active");
     currentTab = tab.dataset.tab;
 
-    document.querySelectorAll(".output").forEach((o) => o.classList.remove("active"));
+    document
+      .querySelectorAll(".output")
+      .forEach((o) => o.classList.remove("active"));
     document.getElementById(`output-${currentTab}`).classList.add("active");
   });
 });
@@ -49,6 +51,13 @@ form.addEventListener("submit", async (e) => {
     outputDesign.textContent = data.design_md;
     outputSkills.textContent = data.skills_md;
 
+    // Show screenshot
+    if (data.screenshot) {
+      const img = document.getElementById("screenshot");
+      img.src = `data:image/png;base64,${data.screenshot}`;
+      document.getElementById("preview-wrapper").classList.remove("hidden");
+    }
+
     statusEl.classList.add("hidden");
     resultsEl.classList.remove("hidden");
   } catch (err) {
@@ -66,7 +75,10 @@ function setLoading(isLoading) {
 
 // ── Copy button ───────────────────────────
 document.getElementById("copy-btn").addEventListener("click", () => {
-  const text = currentTab === "design" ? outputDesign.textContent : outputSkills.textContent;
+  const text =
+    currentTab === "design"
+      ? outputDesign.textContent
+      : outputSkills.textContent;
   navigator.clipboard.writeText(text).then(() => {
     alert("Copied to clipboard!");
   });
