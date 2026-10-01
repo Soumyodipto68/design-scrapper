@@ -7,11 +7,11 @@ import { buildSkillsMd } from "./generators/skills-md";
 import { DesignData, ColorInfo, FontInfo } from "./types";
 
 const app = express();
+const PORT = Number(process.env.PORT) || 3000;
 app.use(express.json({ limit: "20mb" })); // screenshots are base64 — allow larger payloads
 
 // Serve static frontend
 app.use(express.static(path.join(__dirname, "../public")));
-
 // ────────────────────────────────────────────────────────
 // Core scrape logic (shared by single + batch endpoints)
 // ────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ async function scrapeSingle(url: string) {
   const pageData = await fetchPage(url);
 
   // ── Detect tech stack ──────────────────────────────
-const techs = detectTech(pageData.html, pageData.headers ?? null);
+  const techs = detectTech(pageData.html, pageData.headers ?? null);
 
   // ── Extract colors ─────────────────────────────────
   const colorMap: Record<string, number> = {};
@@ -61,7 +61,7 @@ const techs = detectTech(pageData.html, pageData.headers ?? null);
     [s.paddingTop, s.paddingLeft, s.marginTop, s.marginBottom].forEach(
       (v: string) => {
         if (v && v !== "0px" && parseFloat(v) > 0) spacingSet.add(v);
-      }
+      },
     );
   });
   const spacing = [...spacingSet]
@@ -96,7 +96,9 @@ app.post("/api/scrape", async (req, res) => {
   try {
     const { url } = req.body;
     if (!url || !/^https?:\/\//.test(url)) {
-      return res.status(400).json({ error: "Valid URL required (http:// or https://)" });
+      return res
+        .status(400)
+        .json({ error: "Valid URL required (http:// or https://)" });
     }
 
     console.log(`Scraping: ${url}`);
@@ -141,6 +143,21 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-app.listen(3000, () => {
-  console.log("Server running at http://localhost:3000");
+app.get("/healthz", (_req, res) => {
+  res.status(200).send("ok");
+});
+
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on http://0.0.0.0:${PORT}`);
+});
+
+// Graceful shutdown for Railway restarts
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received. Shutting down gracefully...");
+  server.close(() => process.exit(0));
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received. Shutting down gracefully...");
+  server.close(() => process.exit(0));
 });
