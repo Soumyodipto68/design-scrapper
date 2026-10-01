@@ -1,3 +1,4 @@
+import dotenv from "dotenv";
 import express from "express";
 import path from "path";
 import { fetchPage } from "./scraper/fetcher";
@@ -7,21 +8,30 @@ import { buildSkillsMd } from "./generators/skills-md";
 import { DesignData, ColorInfo, FontInfo } from "./types";
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
-app.use(express.json({ limit: "20mb" })); // screenshots are base64 — allow larger payloads
+
+// ── Middleware ─────────────────────────────
+app.use(express.json({ limit: "20mb" }));
+dotenv.config();
+// Security headers
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  next();
+});
 
 // Serve static frontend
-app.use(express.static(path.join(__dirname, "../public")));
-// ────────────────────────────────────────────────────────
-// Core scrape logic (shared by single + batch endpoints)
-// ────────────────────────────────────────────────────────
+const publicDir = path.resolve(__dirname, "../public");
+app.use(express.static(publicDir, { maxAge: "1h" }));
+
+// ────────────────────────────────────────────
+// Core scrape logic
+// ────────────────────────────────────────────
 async function scrapeSingle(url: string) {
   const pageData = await fetchPage(url);
 
-  // ── Detect tech stack ──────────────────────────────
   const techs = detectTech(pageData.html, pageData.headers ?? null);
 
-  // ── Extract colors ─────────────────────────────────
+  // Colors
   const colorMap: Record<string, number> = {};
   pageData.styles.forEach((s: any) => {
     if (s.color && s.color !== "rgba(0, 0, 0, 0)") {
@@ -37,12 +47,10 @@ async function scrapeSingle(url: string) {
     .slice(0, 20)
     .map(([hex, count]) => ({ hex, usage: "detected", count }));
 
-  // ── Extract fonts ──────────────────────────────────
+  // Fonts
   const fontMap: Record<string, number> = {};
   pageData.styles.forEach((s: any) => {
-    if (s.fontFamily) {
-      fontMap[s.fontFamily] = (fontMap[s.fontFamily] || 0) + 1;
-    }
+    if (s.fontFamily) fontMap[s.fontFamily] = (fontMap[s.fontFamily] || 0) + 1;
   });
 
   const fonts: FontInfo[] = Object.entries(fontMap)
@@ -55,29 +63,25 @@ async function scrapeSingle(url: string) {
       count,
     }));
 
-  // ── Extract spacing scale ──────────────────────────
+  // Spacing
   const spacingSet = new Set<string>();
   pageData.styles.forEach((s: any) => {
-    [s.paddingTop, s.paddingLeft, s.marginTop, s.marginBottom].forEach(
-      (v: string) => {
-        if (v && v !== "0px" && parseFloat(v) > 0) spacingSet.add(v);
-      },
-    );
+    [s.paddingTop, s.paddingLeft, s.marginTop, s.marginBottom].forEach((v: string) => {
+      if (v && v !== "0px" && parseFloat(v) > 0) spacingSet.add(v);
+    });
   });
-  const spacing = [...spacingSet]
-    .sort((a, b) => parseFloat(a) - parseFloat(b))
-    .slice(0, 12);
 
-  // ── Build design data ──────────────────────────────
   const designData: DesignData = {
     url,
     colors,
     fonts,
     headings: pageData.headings || [],
     buttons: pageData.buttons || [],
-    spacing,
+    spacing: [...spacingSet]
+      .sort((a, b) => parseFloat(a) - parseFloat(b))
+      .slice(0, 12),
     breakpoints: [`viewport: ${pageData.viewportWidth}px`],
-    layout: `Detected ${pageData.styles.length} elements on initial viewport`,
+    layout: `Detected ${pageData.styles.length} elements`,
   };
 
   return {
@@ -87,30 +91,23 @@ async function scrapeSingle(url: string) {
   };
 }
 
-// ────────────────────────────────────────────────────────
+// ────────────────────────────────────────────
 // Routes
-// ────────────────────────────────────────────────────────
-
-// Single URL scrape
+// ────────────────────────────────────────────
 app.post("/api/scrape", async (req, res) => {
   try {
     const { url } = req.body;
     if (!url || !/^https?:\/\//.test(url)) {
-      return res
-        .status(400)
-        .json({ error: "Valid URL required (http:// or https://)" });
+      return res.status(400).json({ error: "Valid URL required" });
     }
-
     console.log(`Scraping: ${url}`);
-    const result = await scrapeSingle(url);
-    res.json(result);
+    res.json(await scrapeSingle(url));
   } catch (err: any) {
-    console.error("Scrape error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Scrape error:", err.message);
+    res.status(500).json({ error: "Scraping failed." });
   }
 });
 
-// Batch scrape (up to 10 URLs, sequential for safety)
 app.post("/api/batch-scrape", async (req, res) => {
   try {
     const { urls } = req.body;
@@ -121,43 +118,40 @@ app.post("/api/batch-scrape", async (req, res) => {
     const results: any[] = [];
     for (const url of urls.slice(0, 10)) {
       if (!/^https?:\/\//.test(url)) continue;
-
-      console.log(`Batch scraping: ${url}`);
       try {
-        const result = await scrapeSingle(url);
-        results.push({ url, ...result, success: true });
+        results.push({ url, ...(await scrapeSingle(url)), success: true });
       } catch (err: any) {
         results.push({ url, error: err.message, success: false });
       }
     }
-
     res.json({ results });
   } catch (err: any) {
-    console.error("Batch error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Batch error:", err.message);
+    res.status(500).json({ error: "Batch scraping failed" });
   }
 });
 
-// Health check
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
-
+// Health check for Railway
 app.get("/healthz", (_req, res) => {
   res.status(200).send("ok");
 });
 
-const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
+// SPA Fallback: Serve index.html for all other routes
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(publicDir, "index.html"));
 });
 
-// Graceful shutdown for Railway restarts
+// ────────────────────────────────────────────
+// Start Server
+// ────────────────────────────────────────────
+const PORT = process.env.PORT || 3000;
+
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// Graceful shutdown
 process.on("SIGTERM", () => {
-  console.log("SIGTERM received. Shutting down gracefully...");
-  server.close(() => process.exit(0));
-});
-
-process.on("SIGINT", () => {
-  console.log("SIGINT received. Shutting down gracefully...");
+  console.log("SIGTERM received. Shutting down...");
   server.close(() => process.exit(0));
 });
