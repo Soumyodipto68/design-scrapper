@@ -136,8 +136,11 @@ app.get("/healthz", (_req, res) => {
   res.status(200).send("ok");
 });
 
-// SPA Fallback: Serve index.html for all other routes
-app.get("*", (_req, res) => {
+// SPA fallback for non-API routes only. Express 5 does not accept bare '*' in route paths.
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api")) {
+    return next();
+  }
   res.sendFile(path.join(publicDir, "index.html"));
 });
 
